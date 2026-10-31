@@ -1,0 +1,71 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Build Linux binaries
+        run: |
+          mkdir -p dist
+
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" -o dist/noise-server-linux-amd64 ./cmd/noise-server
+
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" -o dist/noise-server-linux-arm64 ./cmd/noise-server
+
+          cp deploy/install.sh dist/install.sh
+          cd dist
+          sha256sum noise-server-linux-* > sha256sums.txt
+
+      - name: Publish Release (on branch push -> v0.1.0 latest)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v0.1.0"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            git tag -f "$TAG" "${{ github.sha }}"
+            git push origin "$TAG" --force
+            gh release create "$TAG" dist/* \
+              --title "Noise Server $TAG" \
+              --notes "Automated Linux binary build from commit ${{ github.sha }}" \
+              --latest
+          fi
+
+      - name: Publish Release (on version tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --title "Noise Server $TAG" \
+              --generate-notes \
+              --latest
+          fi
