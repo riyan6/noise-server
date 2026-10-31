@@ -1,0 +1,21 @@
+[Unit]
+Description=Noise monitoring API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=noise
+Group=noise
+WorkingDirectory=/opt/noise
+EnvironmentFile=/etc/noise/noise.env
+StateDirectory=noise
+StateDirectoryMode=0700
+ExecStart=/opt/noise/noise-server
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

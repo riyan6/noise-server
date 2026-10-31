@@ -1,0 +1,9 @@
+/data/
+/bin/
+/noise-server
+/.env
+/coverage.out
+*.db
+*.db-wal
+*.db-shm
+*.exe
